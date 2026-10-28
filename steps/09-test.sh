@@ -15,16 +15,16 @@ case "$OS" in
   android)
     case "$CPU" in
       arm)
-        PREFIX="armv7a-linux-androideabi19-"
+        PREFIX="armv7a-linux-androideabi23-"
         ;;
       arm64)
-        PREFIX="aarch64-linux-android21-"
+        PREFIX="aarch64-linux-android23-"
         ;;
       x64)
-        PREFIX="x86_64-linux-android21-"
+        PREFIX="x86_64-linux-android23-"
         ;;
       x86)
-        PREFIX="i686-linux-android19-"
+        PREFIX="i686-linux-android23-"
         ;;
     esac
     CMAKE_ARGS+=(

@@ -26,6 +26,7 @@ rm -rf third_party/mimalloc
 cp -R "$THIRD_PARTY/mimalloc" third_party/mimalloc
 
 [ "$BUILD_TYPE" == "shared" ] && [ "$OS" != "emscripten" ] && [ "$OS" != "wasi" ] && apply_patch "$PATCHES/shared_library.patch"
+[ "$BUILD_TYPE" == "static" ] && apply_patch "$PATCHES/static_build.patch" build
 apply_patch "$PATCHES/public_headers.patch"
 
 [ "$ENABLE_V8" == "true" ] && apply_patch "$PATCHES/v8/pdfium.patch"

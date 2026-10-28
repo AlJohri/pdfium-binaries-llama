@@ -40,6 +40,11 @@ on:
         type: string
         required: false
         default: 3.1.72
+      build_type:
+        description: Build type (shared|static)
+        type: string
+        required: false
+        default: shared
       wasi_sdk_version:
         description: WASI SDK version
         type: string
@@ -66,6 +71,7 @@ jobs:
       PDFium_TARGET_OS: ${{ inputs.target_os }}
       PDFium_TARGET_ENVIRONMENT: ${{ inputs.target_environment }}
       PDFium_ENABLE_V8: ${{ inputs.enable_v8 }}
+      PDFium_BUILD_TYPE: ${{ inputs.build_type }}
       PDFium_VERSION: ${{ inputs.version }}
       EMSDK_VERSION: ${{ inputs.emsdk_version }}
       WASI_SDK_VERSION: ${{ inputs.wasi_sdk_version }}
@@ -88,6 +94,7 @@ jobs:
           fi
           [ "$PDFium_TARGET_ENVIRONMENT" != "" ] && ARTIFACT="$ARTIFACT-$PDFium_TARGET_ENVIRONMENT"
           ARTIFACT="$ARTIFACT-$PDFium_TARGET_CPU"
+          [ "$PDFium_BUILD_TYPE" == "static" ] && ARTIFACT="$ARTIFACT-static"
           [ "${{ inputs.is_debug }}" == "true" ] && ARTIFACT="$ARTIFACT-debug"
           echo "artifact=$ARTIFACT" >> $GITHUB_OUTPUT
 

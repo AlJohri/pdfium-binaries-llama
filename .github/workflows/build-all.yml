@@ -141,6 +141,30 @@ jobs:
       target_cpu: x86
       enable_v8: true
 
+  linux_arm64_static:
+    name: Linux ARM64 static
+    uses: ./.github/workflows/build.yml
+    with:
+      branch: ${{ github.event.inputs.branch }}
+      version: ${{ github.event.inputs.version }}
+      is_debug: ${{ github.event.inputs.is_debug == 'true' }}
+      target_os: linux
+      target_cpu: arm64
+      enable_v8: false
+      build_type: static
+
+  linux_x64_static:
+    name: Linux x64 static
+    uses: ./.github/workflows/build.yml
+    with:
+      branch: ${{ github.event.inputs.branch }}
+      version: ${{ github.event.inputs.version }}
+      is_debug: ${{ github.event.inputs.is_debug == 'true' }}
+      target_os: linux
+      target_cpu: x64
+      enable_v8: false
+      build_type: static
+
   linux_x64_musl:
     name: Linux x64 MUSL
     needs: linux_x64
@@ -217,6 +241,30 @@ jobs:
       target_os: mac
       target_cpu: x64
       enable_v8: true
+
+  mac_arm64_static:
+    name: macOS ARM64 static
+    uses: ./.github/workflows/build.yml
+    with:
+      branch: ${{ github.event.inputs.branch }}
+      version: ${{ github.event.inputs.version }}
+      is_debug: ${{ github.event.inputs.is_debug == 'true' }}
+      target_os: mac
+      target_cpu: arm64
+      enable_v8: false
+      build_type: static
+
+  mac_x64_static:
+    name: macOS x64 static
+    uses: ./.github/workflows/build.yml
+    with:
+      branch: ${{ github.event.inputs.branch }}
+      version: ${{ github.event.inputs.version }}
+      is_debug: ${{ github.event.inputs.is_debug == 'true' }}
+      target_os: mac
+      target_cpu: x64
+      enable_v8: false
+      build_type: static
 
   mac_univ:
     name: macOS univ
@@ -358,12 +406,16 @@ jobs:
       - linux_x86_v8
       - linux_x64_musl
       - linux_x64_musl_v8
+      - linux_arm64_static
+      - linux_x64_static
       - mac_arm64
       - mac_arm64_v8
       - mac_x64
       - mac_x64_v8
       - mac_univ
       - mac_univ_v8
+      - mac_arm64_static
+      - mac_x64_static
       - win_arm64
       - win_arm64_v8
       - win_x64

@@ -21,7 +21,9 @@ mkdir -p "$BUILD"
     # ThinLTO requires lld (LLVM linker), which is only available with clang.
     # Skip it for: emscripten/wasi (use their own toolchains) and musl
     # (GCC-based cross toolchain, no lld).
-    if [ "$OS" != "emscripten" ] && [ "$OS" != "wasi" ] && [ "$TARGET_ENVIRONMENT" != "musl" ]; then
+    # Static archives must hold machine code: ThinLTO objects are LLVM bitcode,
+    # which a consumer's GNU ld cannot read.
+    if [ "$OS" != "emscripten" ] && [ "$OS" != "wasi" ] && [ "$TARGET_ENVIRONMENT" != "musl" ] && [ "$BUILD_TYPE" != "static" ]; then
       echo "use_thin_lto = true"
     fi
     echo "chrome_pgo_phase = 0"
@@ -42,6 +44,15 @@ mkdir -p "$BUILD"
 
   if [ "$BUILD_TYPE" == "static" ]; then
     echo "pdf_is_complete_lib = true"
+    echo "use_custom_libcxx = false"
+
+    # libyuv's SME kernels call compiler-rt helpers (__arm_get_current_vg,
+    # __arm_tpidr2_save) that a shared build links in but an archive cannot.
+    # Older branches have no libyuv, where GN would warn about an unused arg.
+    if [ "$TARGET_CPU" == "arm64" ] && { [ "$OS" == "linux" ] || [ "$OS" == "android" ]; } \
+      && [ -d "$SOURCE/third_party/libyuv" ]; then
+      echo "libyuv_use_sme = false"
+    fi
   fi
 
   # llamaparse: PDFium's allocation funnels go through vendored mimalloc on

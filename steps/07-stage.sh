@@ -2,6 +2,7 @@
 
 IS_DEBUG=${PDFium_IS_DEBUG:-false}
 OS=${PDFium_TARGET_OS:?}
+TARGET_CPU=${PDFium_TARGET_CPU:?}
 VERSION=${PDFium_VERSION:-}
 PATCHES="$PWD/patches"
 BUILD_TYPE=${PDFium_BUILD_TYPE:-shared}
@@ -54,10 +55,11 @@ verify_allocator_exports() {
   fi
   local tools="$SOURCE/third_party/llvm-build/Release+Asserts/bin"
   local exports
-  case "$OS" in
-    linux|android) exports=$("$tools/llvm-nm" -D --defined-only "$lib" | awk '{print $3}') ;;
-    mac|ios) exports=$("$tools/llvm-nm" -gU "$lib" | awk '{print $3}') ;;
-    win)
+  case "$OS-$lib" in
+    *.a) exports=$("$tools/llvm-nm" --defined-only --extern-only --format=just-symbols "$lib" | grep -v -e ":$" -e "^$") ;;
+    linux-*|android-*) exports=$("$tools/llvm-nm" -D --defined-only "$lib" | awk '{print $3}') ;;
+    mac-*|ios-*) exports=$("$tools/llvm-nm" -gU "$lib" | awk '{print $3}') ;;
+    win-*)
       # The Windows LLVM package ships no llvm-readobj; read the PE export
       # table directly (stdlib python, see steps/pe_exports.py).
       local py
@@ -82,6 +84,71 @@ verify_allocator_exports() {
   echo "allocator export check passed: $lib ($(printf '%s\n' "$exports" | grep -c .) exports)"
 }
 
+# A static archive exposes every global symbol of PDFium's bundled
+# dependencies (abseil, ICU, libjpeg, freetype, ...), which collide with the consumer's
+# own copies, and, with mimalloc, a global operator new/delete that would
+# replace the host's. Merge the archive into one relocatable object and
+# keep only the functions the public headers declare global, matching what the
+# shared library exports.
+hide_internal_symbols() {
+  local lib="$1"
+  local tools="$SOURCE/third_party/llvm-build/Release+Asserts/bin"
+  local prefix=""
+  case "$OS" in
+    mac|ios) prefix="_" ;;
+  esac
+  local work
+  work=$(mktemp -d)
+  python3 "$(dirname "${BASH_SOURCE[0]}")/public_symbols.py" "$STAGING/include" \
+    | sed "s/^/$prefix/" >"$work/declared.txt"
+  "$tools/llvm-nm" --defined-only --extern-only --format=just-symbols "$lib" \
+    | grep -x -F -f "$work/declared.txt" | sort -u >"$work/public.txt"
+  if ! grep -qx "${prefix}FPDF_InitLibrary" "$work/public.txt"; then
+    echo "ERROR: no public symbols found in $lib (FPDF_InitLibrary missing)" >&2
+    exit 1
+  fi
+  case "$OS" in
+    linux|android)
+      # --whole-archive pulls in every member, so drop the sections that no
+      # public function reaches; the consumer's linker no longer can.
+      sed 's/^/--undefined=/' "$work/public.txt" >"$work/roots.rsp"
+      "$tools/ld.lld" -r --gc-sections "@$work/roots.rsp" --whole-archive "$lib" -o "$work/pdfium.o"
+      "$tools/llvm-objcopy" --keep-global-symbols="$work/public.txt" "$work/pdfium.o"
+      ;;
+    mac|ios)
+      # The merged object keeps the platform, deployment target and SDK that
+      # the archive was built for.
+      local member platform="" minos="" sdk=""
+      for member in $("$tools/llvm-ar" t "$lib"); do
+        (cd "$work" && "$tools/llvm-ar" x "$lib" "$member")
+        read -r platform minos sdk < <(xcrun vtool -show-build "$work/$member" 2>/dev/null \
+          | awk '$1 == "platform" { p = $2 } $1 == "minos" { m = $2 } $1 == "sdk" { s = $2 }
+                 END { print p, m, s }')
+        rm -f "$work/$member"
+        [ -n "$minos" ] && break
+      done
+      case "$platform" in
+        MACOS) platform=macos ;;
+        IOS) platform=ios ;;
+        IOSSIMULATOR) platform=ios-simulator ;;
+        MACCATALYST) platform=mac-catalyst ;;
+        *)
+          echo "ERROR: unknown platform '$platform' in $lib" >&2
+          exit 1
+          ;;
+      esac
+      [ "$sdk" == "n/a" ] && sdk="$minos"
+      local arch=arm64
+      [ "$TARGET_CPU" == "x64" ] && arch=x86_64
+      xcrun ld -r -arch "$arch" -platform_version "$platform" "$minos" "$sdk" \
+        -all_load "$lib" -exported_symbols_list "$work/public.txt" -o "$work/pdfium.o"
+      ;;
+  esac
+  rm "$lib"
+  "$tools/llvm-ar" rcs "$lib" "$work/pdfium.o"
+  rm -rf "$work"
+}
+
 case "$OS-$BUILD_TYPE" in
   android-shared|linux-shared)
     mv "$BUILD/libpdfium.so" "$STAGING_LIB"
@@ -90,6 +157,8 @@ case "$OS-$BUILD_TYPE" in
 
   android-static|linux-static|mac-static|ios-static)
     mv "$BUILD/obj/libpdfium.a" "$STAGING_LIB"
+    hide_internal_symbols "$STAGING_LIB/libpdfium.a"
+    verify_allocator_exports "$STAGING_LIB/libpdfium.a"
     ;;
 
   mac-shared|ios-shared)
@@ -134,7 +203,7 @@ case "$OS-$BUILD_TYPE" in
     [ "$IS_DEBUG" == "true" ] && mv "$BUILD/pdfium.dll.pdb" "$STAGING_BIN"
     ;;
 
-  win-shared)
+  win-static)
     mv "$BUILD/obj/pdfium.lib" "$STAGING_LIB"
     ;;
 esac

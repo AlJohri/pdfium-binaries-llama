@@ -1,0 +1,8 @@
+--- a/config/compiler/BUILD.gn
++++ b/config/compiler/BUILD.gn
+@@ -677,3 +677,4 @@
+     if (is_linux && use_lld && current_cpu != "arm" && current_cpu != "s390x") {
+-      cflags += [ "-Wa,--crel,--allow-experimental-crel" ]
++      # pdfium-binaries: a static archive is linked by the consumer, whose GNU
++      # ld cannot read CREL sections.
+     }

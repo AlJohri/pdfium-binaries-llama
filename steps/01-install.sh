@@ -31,7 +31,7 @@ case "$TARGET_OS" in
     sudo apt-get install -y unzip
 
     # pdfium installs its version of the NDK, but we need one for compiling the example
-    ANDROID_NDK_VERSION="r25c"
+    ANDROID_NDK_VERSION="r29"
     ANDROID_NDK_FOLDER="android-ndk-$ANDROID_NDK_VERSION"
     ANDROID_NDK_ZIP="android-ndk-$ANDROID_NDK_VERSION-linux.zip"
     if [ ! -d "$ANDROID_NDK_FOLDER" ];
